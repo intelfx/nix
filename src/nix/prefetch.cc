@@ -10,6 +10,7 @@
 #include "eval-inline.hh"
 #include "legacy.hh"
 #include "posix-source-accessor.hh"
+#include "terminal.hh"
 
 #include <nlohmann/json.hpp>
 
@@ -188,7 +189,7 @@ static int main_nix_prefetch_url(int argc, char * * argv)
 
         Finally f([]() { stopProgressBar(); });
 
-        if (isatty(STDERR_FILENO))
+        if (shouldANSI())
           startProgressBar();
 
         auto store = openStore();
