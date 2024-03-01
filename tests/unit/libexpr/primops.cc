@@ -3,6 +3,7 @@
 
 #include "eval-settings.hh"
 #include "memory-input-accessor.hh"
+#include "flake/flakeref.hh"
 
 #include "tests/libexpr.hh"
 
@@ -854,5 +855,36 @@ namespace nix {
         // Operator should not be used when startSet is empty
         auto v = eval("builtins.genericClosure { startSet = []; }");
         ASSERT_THAT(v, IsListOfSize(0));
+    }
+
+    TEST_F(PrimOpTest, parseFlakeRef) {
+        auto getAttrStr = [&](Value attrSet, std::string attrName) -> Value * {
+            auto attr = attrSet.attrs->get(createSymbol(attrName.c_str()));
+            if (attr == nullptr) {
+                ADD_FAILURE();
+                return new Value(); // Just so that it doesn't crash
+            }
+            return attr->value;
+        };
+
+        // These two refs should be equivalent
+        auto ref1 = "/foo/bar?lastModified=5";
+        auto ref2 = "/foo/bar?lastModified=5#";
+
+        for (auto ref : std::vector<std::string>{ref1, ref2}) {
+            auto v = eval(fmt("builtins.parseFlakeRef \"%s\"", ref));
+            ASSERT_THAT(v, IsAttrsOfSize(3));
+
+            EXPECT_THAT(*getAttrStr(v, "type"), IsStringEq("path"));
+            EXPECT_THAT(*getAttrStr(v, "path"), IsStringEq("/foo/bar"));
+            EXPECT_THAT(*getAttrStr(v, "lastModified"), IsIntEq(5));
+        }
+    }
+    TEST_F(PrimOpTest, parseFlakeRefWithFragment) {
+        // Throws because `builtins.parseFlakeRef` doesn't accept a fragment
+        EXPECT_THROW(
+                eval("builtins.parseFlakeRef \"/foo/bar?lastModified=5#foo\""),
+                FlakeRefError
+        );
     }
 } /* namespace nix */
